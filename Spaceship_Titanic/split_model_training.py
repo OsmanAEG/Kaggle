@@ -6,29 +6,16 @@ import pandas as pd
 from data_processor import Process_Data
 from model import Model_Arch
 
-# Check if CUDA is available and print device information
-if torch.cuda.is_available():
-  device = torch.device('cuda')
-  print('DEVICE: ' + torch.cuda.get_device_name(0))
-else:
-  device = torch.device('cpu')
-  print('DEVICE: CPU')
+# device selection
+device = torch.device('cuda')
 
 # setup data
 train_set = Process_Data(pd.read_csv('train.csv'), device, train=True)
-test_set  = Process_Data(pd.read_csv('test.csv'), device, train=False)
-
-# process data
 train_set.process()
 
-test_set.scalers = train_set.scalers
-test_set.process()
+# split data
+X_train, Y_train, X_test, Y_test = train_set.split_train_data()
 
-# convert to tensors
-X_train, Y_train = train_set.get_tensors()
-X_test,  _       = test_set.get_tensors()
-
-# setup model parameters
 N_in = X_train.shape[1]
 N_out = 1
 
@@ -57,13 +44,8 @@ model.eval()
 with torch.no_grad():
   predictions = model(X_test)
 
-outputs = torch.round(predictions)
+outputs = torch.round(predictions).squeeze()
 
-# write to csv
-id_test = pd.read_csv('test.csv')['PassengerId']
+accuracy = (outputs == Y_test).float().mean()
+print(f'Accuracy: {accuracy.item() * 100:.2f}%')
 
-with open('submission.csv', 'w') as f:
-    f.write('PassengerId,Transported\n')
-    for i in range(len(outputs)):
-        is_transported = True if outputs[i][0] == 1 else False
-        f.write(str(id_test[i]) + ',' + str(is_transported) + '\n')
